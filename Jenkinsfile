@@ -14,12 +14,27 @@ pipeline {                                    // 1  // Defines the start of the 
             steps {                           // 5  // Defines the steps that will be executed in this stage
                 echo "----------- build started ----------"  
                                               // Logs a message indicating the start of the build
-                sh 'mvn clean deploy'  
+                sh 'mvn clean deploy -Dmaven.test.skip=true'
                                               // Runs Maven clean and deploy commands, skipping tests
                 echo "----------- build completed ----------"  
                                               // Logs a message indicating the build completion
             }                                 // 5  // Ends the steps block for 'build' stage
-        }                                     // 4  // Ends the 'build' stage
+        }   
+	                                  // 4  // Ends the 'build' stage
+	stage("test") {                      // 4  // Creates a stage named 'build'
+            steps {                           // 5  // Defines the steps that will be executed in this stage
+                echo "-----------test started ----------"
+                                              // Logs a message indicating the start of the build
+                sh 'mvn surefire-report:report'
+                                              // Runs Maven clean and deploy commands, skipping tests
+                echo "-----------test  completed ----------"
+                                              // Logs a message indicating the build completion
+            }                                 // 5  // Ends the steps block for 'build' stage
+        }   
+
+
+
+
 
         stage('SonarQube analysis') {         // 8  // Creates a stage named 'SonarQube analysis'
             environment {                     // 9  // Defines environment variables specific to this stage
