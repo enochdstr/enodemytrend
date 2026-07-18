@@ -1,77 +1,77 @@
 // Define the URL of the Artifactory registry
+def registry = "https://trialst8hog.jfrog.io/"
 
-pipeline {                                    // 1  // Defines the start of the Jenkins pipeline block
+pipeline {
 
-    agent any                                 // Specifies the pipeline can run on any available agent
+    agent any
 
-    environment {                             // 2  // Defines environment variables for the pipeline
-        PATH = "/opt/maven/bin:$PATH"         // Adds Maven's path to the system's PATH variable
-    }                                         // 2  // Ends the environment block
+    environment {
+        PATH = "/opt/maven/bin:$PATH"
+    }
 
-    stages {                                  // 3  // Defines the stages block where multiple stages are declared
+    stages {
 
-        stage("build") {                      // 4  // Creates a stage named 'build'
-            steps {                           // 5  // Defines the steps that will be executed in this stage
-                echo "----------- build started ----------"  
-                                              // Logs a message indicating the start of the build
+        stage("build") {
+            steps {
+                echo "----------- build started ----------"
                 sh 'mvn clean deploy -Dmaven.test.skip=true'
-                                              // Runs Maven clean and deploy commands, skipping tests
-                echo "----------- build completed ----------"  
-                                              // Logs a message indicating the build completion
-            }                                 // 5  // Ends the steps block for 'build' stage
-        }   
-	                                  // 4  // Ends the 'build' stage
-	stage("test") {                      // 4  // Creates a stage named 'build'
-            steps {                           // 5  // Defines the steps that will be executed in this stage
-                echo "-----------test started ----------"
-                                              // Logs a message indicating the start of the build
+                echo "----------- build completed ----------"
+            }
+        }
+
+        stage("test") {
+            steps {
+                echo "----------- test started ----------"
                 sh 'mvn surefire-report:report'
-                                              // Runs Maven clean and deploy commands, skipping tests
-                echo "-----------test  completed ----------"
-                                              // Logs a message indicating the build completion
-            }                                 // 5  // Ends the steps block for 'build' stage
-        }   
+                echo "----------- test completed ----------"
+            }
+        }
 
+        stage("SonarQube analysis") {
+            environment {
+                scannerHome = tool 'enochdstr-Sonarqube-scanner'
+            }
 
-        stage('SonarQube analysis') {         // 8  // Creates a stage named 'SonarQube analysis'
-            environment {                     // 9  // Defines environment variables specific to this stage
-                scannerHome = tool 'enochdstr-Sonarqube-scanner'  
-                                              // Sets the SonarQube scanner tool
-            }                                 // 9  // Ends the environment block for this stage
+            steps {
+                withSonarQubeEnv('enochdstr-sonarqube-server') {
+                    sh "${scannerHome}/bin/sonar-scanner"
+                }
+            }
+        }
 
-            steps {                           // 10  // Defines the steps that will be executed in this stage
-                withSonarQubeEnv('enochdstr-sonarqube-server') {  
-                                              // Executes the SonarQube analysis within the SonarQube environment
-                    sh "${scannerHome}/bin/sonar-scanner"  
-                                              // Runs the SonarQube scanner tool
-                }                             // Ends the withSonarQubeEnv block
-            } 
-	}
-	
-	stage["Jar Publish"] {
-                steps {
-                  script {
-                        echo "<----------------Jar publish started----"
-                        def server = Artifcatory.newServer url: registry + "/artifactory", credentialsid: "artifact-cred"
-                        def properties = "buildid=${env.BUILD_ID}.commitid=${GIT_COMMIT}"
-                        def uploadSpec = """{
-                                "files": [
-                                   {
-                                    "pattern": "jarstaging/( * ) ",
-                                    "target": "eno-libs-release-loacal/{1}",
-                                     "flat": "false",
-                                     "props": "${properties}",
-                                     "exclusions":[ "*.sha1", "*.md5"]
-                                    }
-                                ]
-                        }"""
-                        def buildinfo = server.upload(uploadSpec)
-			buildInfo.env.collect()
-			server.publishBuildInfo(buildInfo)
-			echo "<-------------------------------------------Jar publish ended"
-			
-		    }
-		}
-	    } 
-	}           
-}   
+        stage("Jar Publish") {
+            steps {
+                script {
+                    echo "<---------------- Jar publish started ---------------->"
+
+                    def server = Artifactory.newServer(
+                        url: registry + "artifactory",
+                        credentialsId: "artifact-cred"
+                    )
+
+                    def properties = "buildid=${env.BUILD_ID};commitid=${env.GIT_COMMIT}"
+
+                    def uploadSpec = """{
+                        "files": [
+                            {
+                                "pattern": "jarstaging/*.jar",
+                                "target": "eno-libs-release-local/",
+                                "flat": "false",
+                                "props": "${properties}",
+                                "exclusions": ["*.sha1", "*.md5"]
+                            }
+                        ]
+                    }"""
+
+                    def buildInfo = server.upload(uploadSpec)
+
+                    buildInfo.env.collect()
+
+                    server.publishBuildInfo(buildInfo)
+
+                    echo "<---------------- Jar publish completed ---------------->"
+                }
+            }
+        }
+    }
+}
