@@ -33,9 +33,6 @@ pipeline {                                    // 1  // Defines the start of the 
         }   
 
 
-
-
-
         stage('SonarQube analysis') {         // 8  // Creates a stage named 'SonarQube analysis'
             environment {                     // 9  // Defines environment variables specific to this stage
                 scannerHome = tool 'enochdstr-Sonarqube-scanner'  
@@ -50,5 +47,31 @@ pipeline {                                    // 1  // Defines the start of the 
                 }                             // Ends the withSonarQubeEnv block
             } 
 	}
-    } 
-}                      
+	
+	stage["Jar Publish"] {
+                steps {
+                  script {
+                        echo "<----------------Jar publish started----"
+                        def server = Artifcatory.newServer url: registry + "/artifactory", credentialsid: "artifact-cred"
+                        def properties = "buildid=${env.BUILD_ID}.commitid=${GIT_COMMIT}"
+                        def uploadSpec = """{
+                                "files": [
+                                   {
+                                    "pattern": "jarstaging/( * ) ",
+                                    "target": "eno-libs-release-loacal/{1}",
+                                     "flat": "false",
+                                     "props": "${properties}",
+                                     "exclusions":[ "*.sha1", "*.md5"]
+                                    }
+                                ]
+                        }"""
+                        def buildinfo = server.upload(uploadSpec)
+			buildInfo.env.collect()
+			server.publishBuildInfo(buildInfo)
+			echo "<-------------------------------------------Jar publish ended"
+			
+		    }
+		}
+	    } 
+	}           
+}   
